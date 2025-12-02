@@ -397,6 +397,7 @@ public class SpecDisplay extends JComponent {
    private int mStaggerOffset = 0;
 
    private KLMLine.LabelType mLabelType = KLMLine.LabelType.ELEMENT_ABBREV;
+   private KLMTreePanel mKLMPanel = null;
 
    private String mScaleText = mCurrentScalingMode.toString();
 
@@ -756,7 +757,7 @@ public class SpecDisplay extends JComponent {
             addKLMs(lines);
             break;
          case CLEAR_ALL :
-            mLines.clear();
+            clearKLMs();
             break;
          case REMOVE_LINES :
             removeKLMs(lines);
@@ -789,28 +790,6 @@ public class SpecDisplay extends JComponent {
       }
    }
 
-   public void addKLM(KLMLine line) {
-      for (final KLMLine ll : mLines)
-         if (ll.equals(line))
-            return;
-      mLines.add(line);
-      if (mPlotRect != null)
-         repaint(mPlotRect);
-   }
-
-   public void removeKLM(KLMLine line) {
-      final ArrayList<KLMLine> removeMe = new ArrayList<KLMLine>();
-      for (final KLMLine kl : mLines)
-         if (kl.isAssociated(line))
-            removeMe.add(kl);
-      if (removeMe.size() > 0) {
-         for (final KLMLine rm : removeMe)
-            mLines.remove(rm);
-         if (mPlotRect != null)
-            repaint(mPlotRect);
-      }
-   }
-
    public void removeKLMs(Collection<KLMLine> lines) {
       final ArrayList<KLMLine> removeMe = new ArrayList<KLMLine>();
       for (final KLMLine line : lines)
@@ -822,6 +801,19 @@ public class SpecDisplay extends JComponent {
             mLines.remove(rm);
          if (mPlotRect != null)
             repaint(mPlotRect);
+      }
+   }
+
+   /**
+    * This adds a KLM via the KLMTreePanel
+    * 
+    * @param line
+    */
+   public void addKLM(KLMLine line) {
+      if (mKLMPanel != null) {
+         ArrayList<KLMLine> selected = mKLMPanel.selectedKLMs();
+         selected.add(line);
+         mKLMPanel.setKLMs(selected);
       }
    }
 
@@ -903,7 +895,7 @@ public class SpecDisplay extends JComponent {
          case REGION_INTEGRAL :
             return new HalfUpFormat("0.0##", true).format(nn);
          default :
-            if(nn<1.0)
+            if (nn < 1.0)
                return new HalfUpFormat("0.0", true).format(nn);
             else
                return new HalfUpFormat("#,##0", true).format(nn);
@@ -964,8 +956,8 @@ public class SpecDisplay extends JComponent {
             final double step = optimalStepSize(mEMin, mEMax, fm.stringWidth("XXX"), mPlotRect.width) / MIN_GRID_SCALE;
             final double min = ((int) ((mEMin / step) + 0.999)) * step;
             final double max = ((int) (mEMax / step)) * step;
-            final int digits = Math.min(4, Math.max(0, 3 - Math.min(3, (int)Math.floor(Math.log10(step)))));
-            final NumberFormat fmt =  new DecimalFormat(digits==0 ? "0" : "0.0000".substring(0, digits + 2));
+            final int digits = Math.min(4, Math.max(0, 3 - Math.min(3, (int) Math.floor(Math.log10(step)))));
+            final NumberFormat fmt = new DecimalFormat(digits == 0 ? "0" : "0.0000".substring(0, digits + 2));
             for (double m = min; m <= (max + 0.001); m += MIN_GRID_SCALE * step) {
                final String str = fmt.format(0.001 * m);
                final int pos = (int) (l0 + ((w0 * (m - mEMin)) / (mEMax - mEMin)));
@@ -991,7 +983,7 @@ public class SpecDisplay extends JComponent {
       // Draw the cross lines
       switch (mVAxisType) {
          case LINEAR : { // Draw the labels
-            final double step = optimalStepSize(mVMin, mVMax, fm.getHeight(), mPlotRect.height) / MIN_GRID_SCALE; 
+            final double step = optimalStepSize(mVMin, mVMax, fm.getHeight(), mPlotRect.height) / MIN_GRID_SCALE;
             final double min = ((int) (mVMin / step)) * step;
             final double max = ((int) (mVMax / step)) * step;
             dup.setColor(mMinorGridColor);
@@ -1619,8 +1611,8 @@ public class SpecDisplay extends JComponent {
       mZoom /= d;
       Preferences.userNodeForPackage(SpecDisplay.class).putDouble("Zoom", mZoom);
       mVMax = ((mVMax - mVMin) / d) + mVMin;
-      if((getSpectrumScalingMode()==SCALING_MODE.COUNTS) &&(mVMax<8.0))
-         mVMax=8.0;
+      if ((getSpectrumScalingMode() == SCALING_MODE.COUNTS) && (mVMax < 8.0))
+         mVMax = 8.0;
       repaint();
    }
 
@@ -1641,7 +1633,6 @@ public class SpecDisplay extends JComponent {
       gpf.setYRange(mVMin, mVMax);
       gpf.setLogCounts(mVAxisType.equals(AXIS_MODE.LOG));
       return gpf;
-
    }
 
    /**
@@ -2795,9 +2786,12 @@ public class SpecDisplay extends JComponent {
    /**
     * clearAllSpectra - Remove all spectra from the control display.
     */
-   public synchronized void clearAllSpectra() {
+   public synchronized void clearAllSpectra(boolean andKlms) {
       mData.clear();
       mProperties.clear();
+      if ((mKLMPanel != null) && andKlms) {
+         mKLMPanel.setKLMs(Collections.emptyList());
+      }
       repaint();
    }
 
@@ -3103,4 +3097,16 @@ public class SpecDisplay extends JComponent {
       return elms;
    }
 
+   public String exportKLMLines() {
+      return KLMLine.exportKLMLines(this.mLines);
+   }
+
+   public void importKLMLines(Collection<String> buffer) {
+      mLines.clear();
+      mLines.addAll(KLMLine.importKLMLines(buffer));
+   }
+
+   public void setKLMTreePanel(KLMTreePanel panel) {
+      this.mKLMPanel = panel;
+   }
 }

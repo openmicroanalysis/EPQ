@@ -664,7 +664,7 @@ public class SearchWizard extends JWizardDialog {
          jList_Results.getSelectionModel().addListSelectionListener(new ListSelectionListener() {
             @Override
             public void valueChanged(ListSelectionEvent e) {
-               jSpecDisplay_Preview.clearAllSpectra();
+               jSpecDisplay_Preview.clearAllSpectra(false);
                boolean ok = false;
                for (final Session.SpectrumSummary spec : jList_Results.getSelectedValuesList())
                   try {

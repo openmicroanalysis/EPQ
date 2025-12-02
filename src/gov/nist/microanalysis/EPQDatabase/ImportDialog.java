@@ -200,7 +200,7 @@ public class ImportDialog extends JDialog {
       jButton_Remove.addActionListener(new ActionListener() {
          @Override
          public void actionPerformed(ActionEvent e) {
-            jSpecDisplay_Preview.clearAllSpectra();
+            jSpecDisplay_Preview.clearAllSpectra(false);
             final DefaultListModel<ISpectrumData> dlm = (DefaultListModel<ISpectrumData>) jList_Spectra.getModel();
             for (final Object obj : jList_Spectra.getSelectedValuesList())
                dlm.removeElement(obj);
@@ -278,7 +278,7 @@ public class ImportDialog extends JDialog {
          @Override
          public void valueChanged(ListSelectionEvent e) {
             final ListModel<ISpectrumData> lm = jList_Spectra.getModel();
-            jSpecDisplay_Preview.clearAllSpectra();
+            jSpecDisplay_Preview.clearAllSpectra(false);
             final int[] sel = jList_Spectra.getSelectedIndices();
             if (sel.length > 0) { // Display merged
                SpectrumProperties merged = null;

@@ -71,9 +71,22 @@ public class XRayWindow3 implements IXRayWindowProperties {
       if (mTransmission == null)
          loadTransmission();
       int ch = Arrays.binarySearch(mEnergy, energy);
-      if (ch < 0)
-         ch = -ch - 1;
-      return mTransmission[Math.min(ch, mTransmission.length - 1)];
+      if (ch < 0) {
+         final int highCh = Math.max(Math.min(-ch - 1, mTransmission.length - 1), 0);
+         if (highCh >= 1) {
+            if (highCh == mTransmission.length - 1) {
+               return 1.0;
+            } else {
+               final int lowCh = Math.min(highCh - 1, mTransmission.length - 1);
+               return mTransmission[lowCh]
+                     + (mTransmission[highCh] - mTransmission[lowCh]) * (energy - mEnergy[lowCh]) / (mEnergy[highCh] - mEnergy[lowCh]);
+            }
+         } else {
+            return 0.0;
+         }
+      } else {
+         return mTransmission[ch];
+      }
    }
 
    private void loadTransmission() {

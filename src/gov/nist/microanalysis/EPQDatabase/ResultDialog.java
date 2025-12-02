@@ -77,7 +77,7 @@ public class ResultDialog extends JDialog {
       lsm.addListSelectionListener(new ListSelectionListener() {
          @Override
          public void valueChanged(ListSelectionEvent e) {
-            jSpecDisplay_Main.clearAllSpectra();
+            jSpecDisplay_Main.clearAllSpectra(false);
             final Collection<ISpectrumData> specs = getSpectra();
             for (final ISpectrumData spec : specs)
                jSpecDisplay_Main.addSpectrum(spec);

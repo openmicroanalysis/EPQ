@@ -1,6 +1,7 @@
 package gov.nist.microanalysis.EPQTools;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -372,6 +373,40 @@ abstract public class KLMLine implements Comparable<KLMLine> {
             mName = xrt1.toString() + "+" + xrt2.toString();
       }
 
+      private static double sumXRT(Collection<XRayTransition> xrts) {
+         double res = 0.0;
+         for (XRayTransition xrt : xrts)
+            try {
+               res += xrt.getEnergy();
+            } catch (EPQException e) {
+               e.printStackTrace();
+            }
+         return res;
+      }
+
+      public SumPeak(Collection<XRayTransition> xrts) throws EPQException {
+         super(sumXRT(xrts), 0.1);
+         TreeMap<XRayTransition, Integer> hm = new TreeMap<>();
+         for (XRayTransition xrt : xrts) {
+            hm.put(xrt, hm.getOrDefault(xrt, 0) + 1);
+         }
+         StringBuffer sb = new StringBuffer();
+         for (Map.Entry<XRayTransition, Integer> me : hm.entrySet()) {
+            if (!sb.isEmpty()) {
+               sb.append("+");
+            }
+            if (me.getValue() > 1) {
+               sb.append(me.getValue().toString());
+               sb.append("\u00B7");
+               sb.append(me.getKey().toString());
+            } else {
+               sb.append(me.getKey().toString());
+            }
+         }
+         mTransitions = xrts.toArray(new XRayTransition[xrts.size()]);
+         mName = sb.toString();
+      }
+
       public SumPeak(XRayTransition xrt, int n) throws EPQException {
          super(xrt.getEnergy() * n, 0.1);
          mTransitions = new XRayTransition[n];
@@ -580,4 +615,81 @@ abstract public class KLMLine implements Comparable<KLMLine> {
    public KLMLineType getType() {
       return KLMLine.KLMLineType.InvalidType;
    }
+
+   static String exportKLMLines(Collection<KLMLine> lines) {
+      StringBuffer sb = new StringBuffer(lines.size() * 100);
+      for (KLMLine line : lines) {
+         switch (line.getType()) {
+            case InvalidType :
+            case Satellite :
+               // Skip
+               continue;
+            case SumPeak :
+               sb.append("Sum:" + line.toString() + "\n");
+               continue;
+            case EscapePeak :
+               sb.append("Escape:" + line.toString() + "\n");
+               continue;
+            case KEdge :
+            case LEdge :
+            case MEdge :
+            case NEdge :
+               sb.append("Edge:" + line.toString() + "\n");
+               continue;
+            case KTransition :
+            case LTransition :
+            case MTransition :
+            case NTransition :
+               sb.append("Transition:" + line.toString() + "\n");
+               continue;
+         }
+
+      }
+      return sb.toString();
+   }
+
+   static private KLMLine parseKLM(String str) throws EPQException {
+    
+      if (str.startsWith("Sum:")) {
+         Collection<XRayTransition> lines = new ArrayList<>();
+         String[] ss = str.substring(4).trim().split("\\+");
+         for (String s : ss) {
+            if (s.matches("[2-9]·.*")) {
+               int n = Integer.parseInt(s.substring(0, 1));
+               XRayTransition xrt = XRayTransition.parseString(s.substring(2).trim());
+               for (int i = 0; i < n; ++i)
+                  lines.add(xrt);
+            } else {
+               XRayTransition xrt = XRayTransition.parseString(s.trim());
+               lines.add(xrt);
+            }
+         }
+         return new KLMLine.SumPeak(lines);
+      } else if (str.startsWith("Escape:")) {
+         XRayTransition xrt = XRayTransition.parseString(str.substring(7, str.length()-7).trim());
+         return new KLMLine.EscapePeak(xrt);
+      } else if (str.startsWith("Edge:")) {
+         AtomicShell ass = AtomicShell.parseString(str.substring(5).trim());
+         return new KLMLine.Edge(ass);
+      } else if (str.startsWith("Transition:")) {
+         XRayTransition xrt = XRayTransition.parseString(str.substring(11).trim());
+         return new KLMLine.Transition(xrt);
+      } else {
+         throw new EPQException("Unrecognized type while parsing KLM lines.");
+      }
+   }
+
+   static ArrayList<KLMLine> importKLMLines(Collection<String> lines) {
+      ArrayList<KLMLine> res = new ArrayList<KLMLine>();
+      for(String line : lines) {
+         try {
+            if(!line.trim().isEmpty())
+               res.add(KLMLine.parseKLM(line));
+         } catch (EPQException e) {
+            e.printStackTrace();
+         }
+      }
+      return res;
+   }
+
 }

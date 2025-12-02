@@ -122,7 +122,7 @@ public class SpectrumFileChooser extends JDialog {
 
             @Override
             public void actionPerformed(ActionEvent ae) {
-               mSpecDisplay.clearAllSpectra();
+               mSpecDisplay.clearAllSpectra(false);
                final ISpectrumData spec = (ISpectrumData) mSelectSpectrum.getSelectedItem();
                if (spec != null)
                   mSpecDisplay.addSpectrum(spec);
@@ -247,8 +247,7 @@ public class SpectrumFileChooser extends JDialog {
                         }
                         mErrors = errors != null ? errors.toString() : null;
                         mSelected = selections;
-                        mSpecDisplay.clearAllSpectra();
-                        mSpecDisplay.clearKLMs();
+                        mSpecDisplay.clearAllSpectra(true);
                         if (!mSelected.isEmpty()) {
                            final StringBuffer sb = new StringBuffer();
                            for (final ISpectrumData[] specs : mSelected.values())
@@ -260,8 +259,7 @@ public class SpectrumFileChooser extends JDialog {
                      }
                   }
                } else if (changeName.equals(JFileChooser.SELECTED_FILE_CHANGED_PROPERTY)) {
-                  mSpecDisplay.clearAllSpectra();
-                  mSpecDisplay.clearKLMs();
+                  mSpecDisplay.clearAllSpectra(true);
                   mSelected = new TreeMap<File, ISpectrumData[]>();
                   final File file = mFileChooser.getSelectedFile();
                   try {

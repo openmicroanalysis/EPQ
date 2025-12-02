@@ -15,6 +15,10 @@ import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseWheelListener;
+import java.io.File;
+import java.io.PrintWriter;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.sql.SQLException;
 import java.text.DecimalFormat;
 import java.text.NumberFormat;
@@ -23,9 +27,11 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Enumeration;
+import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.Vector;
+import java.util.prefs.Preferences;
 
 import javax.swing.AbstractAction;
 import javax.swing.BoundedRangeModel;
@@ -35,6 +41,7 @@ import javax.swing.Icon;
 import javax.swing.InputMap;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
+import javax.swing.JFileChooser;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JRadioButton;
@@ -94,6 +101,8 @@ public class KLMTreePanel extends JPanel implements ActionListener {
    final private JScrollBar jScrollBar_Z = new JScrollBar();
    final private JButton jButton_Clear = new JButton("Clear");
    final private JButton jButton_ClearAll = new JButton("Clear All");
+   final private JButton jButton_Export = new JButton("Export");
+   final private JButton jButton_Import = new JButton("Import");
    final private JRadioButton jRadioButton_AtomicNumber = new JRadioButton("Z-order");
    final private JRadioButton jRadioButton_Energy = new JRadioButton("E-order");
    final private ButtonGroup jButtonGroup_Order = new ButtonGroup();
@@ -333,7 +342,12 @@ public class KLMTreePanel extends JPanel implements ActionListener {
       return res;
    }
 
-   private void setKLMs(Collection<KLMLine> lines) {
+   ArrayList<KLMLine> selectedKLMs() {
+      return new ArrayList<>(mSelected);
+
+   }
+
+   void setKLMs(Collection<KLMLine> lines) {
       final ArrayList<KLMLine> toAdd = new ArrayList<KLMLine>();
       final ArrayList<KLMLine> toRemove = new ArrayList<KLMLine>();
       for (final KLMLine line : lines)
@@ -357,7 +371,7 @@ public class KLMTreePanel extends JPanel implements ActionListener {
    private void initialize() {
       final CellConstraints cc0 = new CellConstraints(), cc1 = new CellConstraints();
       final PanelBuilder pb = new PanelBuilder(
-            new FormLayout("pref, 3dlu, pref, 3dlu, 80dlu", "pref, 3dlu, pref, 3dlu, pref, 3dlu, default, 5dlu, pref"), this);
+            new FormLayout("pref, 3dlu, pref, 3dlu, 80dlu", "pref, 3dlu, pref, 3dlu, pref, 3dlu, default, 5dlu, pref, 5dlu, pref"), this);
       jTextField_Element.setHorizontalAlignment(SwingConstants.CENTER);
       pb.addLabel("&Element", cc0.xy(1, 1), jTextField_Element, cc1.xy(3, 1));
       jTextField_Element.addFocusListener(new FocusListener() {
@@ -380,15 +394,15 @@ public class KLMTreePanel extends JPanel implements ActionListener {
 
             if (arg0.getKeyCode() == KeyEvent.VK_ENTER) {
                // if (arg0.isControlDown()) {
-                  final Set<Element> elms = parseElementField(jTextField_Element.getText());
-                  if (elms.size() > 0)
-                     try {
-                        setElement(elms.iterator().next());
-                     } catch (final EPQException e) {
-                        System.err.println(e);
-                     }
+               final Set<Element> elms = parseElementField(jTextField_Element.getText());
+               if (elms.size() > 0)
+                  try {
+                     setElement(elms.iterator().next());
+                  } catch (final EPQException e) {
+                     System.err.println(e);
+                  }
             } else {
-                  // updateElementField();
+               // updateElementField();
             }
 
          }
@@ -501,6 +515,61 @@ public class KLMTreePanel extends JPanel implements ActionListener {
          }
       });
 
+      pb.add(jButton_Export, cc0.xy(1, 11));
+      jButton_Export.addActionListener(new ActionListener() {
+
+         @Override
+         public void actionPerformed(ActionEvent e) {
+            try {
+               final String kKlmDir = "KLMLines directory";
+               final Preferences userPref = Preferences.userNodeForPackage(SpecDisplay.class);
+               final JFileChooser jfc = new JFileChooser(userPref.get(kKlmDir, System.getProperty("user.home")));
+               jfc.addChoosableFileFilter(new SimpleFileFilter(new String[]{"klm",}, "KLM Lines"));
+               jfc.setAcceptAllFileFilterUsed(false);
+               final int option = jfc.showSaveDialog(KLMTreePanel.this);
+               if (option == JFileChooser.APPROVE_OPTION) {
+                  File f = jfc.getSelectedFile();
+                  if(!f.getName().toLowerCase().endsWith(".klm")) {
+                     f = new File(f.getParent(), f.getName()+".klm");
+                  }
+                  String lines = KLMLine.exportKLMLines(KLMTreePanel.this.selectedKLMs());
+                  final PrintWriter pw = new PrintWriter(f, "UTF-8");
+                  pw.append(lines);
+                  pw.close();
+                  userPref.put(kKlmDir, f.getParent());
+               }
+            } catch (final Exception e1) {
+               ErrorDialog.createErrorMessage(KLMTreePanel.this, "Error saving file", e1);
+            }
+         }
+      });
+
+      pb.add(jButton_Import, cc0.xy(3, 11));
+      jButton_Import.addActionListener(new ActionListener() {
+
+         @Override
+         public void actionPerformed(ActionEvent e) {
+
+            try {
+               final String kKlmDir = "KLMLines directory";
+               final Preferences userPref = Preferences.userNodeForPackage(SpecDisplay.class);
+               final JFileChooser jfc = new JFileChooser(userPref.get(kKlmDir, System.getProperty("user.home")));
+               jfc.addChoosableFileFilter(new SimpleFileFilter(new String[]{"klm",}, "KLM Lines"));
+               jfc.setAcceptAllFileFilterUsed(false);
+               final int option = jfc.showOpenDialog(KLMTreePanel.this);
+               if (option == JFileChooser.APPROVE_OPTION) {
+                  final File f = jfc.getSelectedFile();
+                  userPref.put(kKlmDir, f.getParent());
+                  List<String> lines = Files.readAllLines(f.toPath(), StandardCharsets.UTF_8);
+                  List<KLMLine> klms = KLMLine.importKLMLines(lines);
+                  KLMTreePanel.this.setKLMs(klms);
+               }
+            } catch (final Exception e1) {
+               ErrorDialog.createErrorMessage(KLMTreePanel.this, "Error saving file", e1);
+            }
+         }
+      });
+
       jTree_Lines.setModel(new DefaultTreeModel(new CheckNode("None")));
       jTree_Lines.getSelectionModel().setSelectionMode(TreeSelectionModel.SINGLE_TREE_SELECTION);
       jTree_Lines.putClientProperty("JTree.lineStyle", "Angled");
@@ -523,7 +592,7 @@ public class KLMTreePanel extends JPanel implements ActionListener {
 
       }
 
-      pb.add(new JScrollPane(jTree_Lines), cc0.xywh(5, 1, 1, 9));
+      pb.add(new JScrollPane(jTree_Lines), cc0.xywh(5, 1, 1, 11));
    }
 
    private class ToggleAction extends AbstractAction {
