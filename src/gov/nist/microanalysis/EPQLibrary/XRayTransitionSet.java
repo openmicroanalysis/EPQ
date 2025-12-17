@@ -81,11 +81,11 @@ public class XRayTransitionSet implements Comparable<XRayTransitionSet>, Cloneab
    /**
     * The transitions often referred to as L eta
     */
-   static final public String L_ETA ="L\u03B7";
+   static final public String L_ETA = "L\u03B7";
    /**
     * The transitions often referred to as L nu
     */
-   static final public String L_NU ="L\u03BD";
+   static final public String L_NU = "L\u03BD";
    /**
     * The transitions often referred to as Ll (script l)
     */
@@ -197,25 +197,32 @@ public class XRayTransitionSet implements Comparable<XRayTransitionSet>, Cloneab
 
    private static final int[] LGammaTransitions = {XRayTransition.LG1, XRayTransition.LG5, XRayTransition.LG6, XRayTransition.LG8, XRayTransition.LG2,
          XRayTransition.LG11, XRayTransition.LG3, XRayTransition.LG4, XRayTransition.LG4p};
-   private static final int[] LEtaTransitions = { XRayTransition.L2N5, XRayTransition.Ln };
-   private static final int[] LNuTransitions = { XRayTransition.Lv };
-   private static final int[] LlTransitions = { XRayTransition.Ll };
-   
-   
+
+   private static final int[] LEtaTransitions = {XRayTransition.L2N5, XRayTransition.Ln};
+
+   private static final int[] LNuTransitions = {XRayTransition.Lv};
+
+   private static final int[] LlTransitions = {XRayTransition.Ll};
+
    private static final int[] LOtherTransitions = {XRayTransition.L3N2, XRayTransition.L3N3, XRayTransition.L3O2, XRayTransition.L3O3,
-         XRayTransition.L3P1, XRayTransition.Ls, XRayTransition.Lt, XRayTransition.Lu, XRayTransition.L2M2, XRayTransition.L2M5,
-         XRayTransition.L2N2, XRayTransition.L2N3, XRayTransition.L2O2, XRayTransition.L2O3, XRayTransition.L2P2,
-         XRayTransition.L1M1, XRayTransition.L1N1, XRayTransition.L1N4, XRayTransition.L1O1,
-         XRayTransition.L1O4};
+         XRayTransition.L3P1, XRayTransition.Ls, XRayTransition.Lt, XRayTransition.Lu, XRayTransition.L2M2, XRayTransition.L2M5, XRayTransition.L2N2,
+         XRayTransition.L2N3, XRayTransition.L2O2, XRayTransition.L2O3, XRayTransition.L2P2, XRayTransition.L1M1, XRayTransition.L1N1,
+         XRayTransition.L1N4, XRayTransition.L1O1, XRayTransition.L1O4};
+
    private static final int[] MAlphaTransitions = {XRayTransition.MA1, XRayTransition.MA2};
+
    private static final int[] MBetaTransitions = {XRayTransition.MB};
+
    private static final int[] MGammaTransitions = {XRayTransition.MG};
+
    private static final int[] MOtherTransitions = {XRayTransition.M1N2, XRayTransition.M1N3, XRayTransition.M2M4, XRayTransition.M2N1,
          XRayTransition.M2N4, XRayTransition.M2O4, XRayTransition.M3M4, XRayTransition.M3M5, XRayTransition.M3N1, XRayTransition.M3N4,
          XRayTransition.M3O1, XRayTransition.M3O4, XRayTransition.M3O5, XRayTransition.M4N3, XRayTransition.M4O2, XRayTransition.MZ2,
          XRayTransition.M5O3, XRayTransition.MZ1};
+
    private static final int[] KFamily = {XRayTransition.KA1, XRayTransition.KA2, XRayTransition.KB1, XRayTransition.KB2, XRayTransition.KB3,
          XRayTransition.KB4, XRayTransition.KB5};
+
    private static final int[] LFamily = {XRayTransition.L3N2, XRayTransition.L3N3, XRayTransition.L3O2, XRayTransition.L3O3, XRayTransition.L3P1,
          XRayTransition.LA1, XRayTransition.LA2, XRayTransition.LB15, XRayTransition.LB2, XRayTransition.LB5, XRayTransition.LB6, XRayTransition.LB7,
          XRayTransition.Ll, XRayTransition.Ls, XRayTransition.Lt, XRayTransition.Lu, XRayTransition.L2M2, XRayTransition.L2M5, XRayTransition.L2N2,
@@ -224,6 +231,7 @@ public class XRayTransitionSet implements Comparable<XRayTransitionSet>, Cloneab
          XRayTransition.L1M1, XRayTransition.L1N1, XRayTransition.L1N4, XRayTransition.L1O1, XRayTransition.L1O4, XRayTransition.LB10,
          XRayTransition.LB3, XRayTransition.LB4, XRayTransition.LB9, XRayTransition.LG2, XRayTransition.LG11, XRayTransition.LG3, XRayTransition.LG4,
          XRayTransition.LG4p};
+
    static private final int[] MFamily = {XRayTransition.M1N2, XRayTransition.M1N3, XRayTransition.M2M4, XRayTransition.M2N1, XRayTransition.M2N4,
          XRayTransition.M2O4, XRayTransition.M3M4, XRayTransition.M3M5, XRayTransition.M3N1, XRayTransition.M3N4, XRayTransition.M3O1,
          XRayTransition.M3O4, XRayTransition.M3O5, XRayTransition.MG, XRayTransition.M4N3, XRayTransition.M4O2, XRayTransition.MB, XRayTransition.MZ2,

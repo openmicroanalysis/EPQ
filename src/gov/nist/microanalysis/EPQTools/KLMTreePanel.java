@@ -91,7 +91,6 @@ public class KLMTreePanel extends JPanel implements ActionListener {
 
    private final double mMaxEnergy = ToSI.keV(300.0);
    private final double mMinWeight = 0.001;
-   private final double mMajorWeight = 0.00;
    private final double mMinEscape = 0.6;
    private final XRayTransition mEscapeTransition = new XRayTransition(Element.byName("Silicon"), XRayTransition.KA1);
 
@@ -318,28 +317,13 @@ public class KLMTreePanel extends JPanel implements ActionListener {
       for (final Element elm : elms)
          setThese.addAll(getDefaultKLMs(elm));
       addKLMs(setThese);
-      return elms;
-   }
-
-   private Collection<KLMLine> getDefaultKLMs(Element elm) {
-      final TreeSet<KLMLine> res = new TreeSet<KLMLine>();
-      int last = XRayTransition.MZ1 + 1;
-      if (elm.getAtomicNumber() < Element.elmB)
-         last = XRayTransition.KA1;
-      else if (elm.getAtomicNumber() < Element.elmCa)
-         last = XRayTransition.L3N2;
-      else if (elm.getAtomicNumber() < Element.elmBa)
-         last = XRayTransition.M1N2;
-      for (int tr = XRayTransition.KA1; tr < last; ++tr) {
-         final XRayTransition xrt = new XRayTransition(elm, tr);
+      if (elms.stream().anyMatch(el -> el.getAtomicNumber() == this.mElementIndex))
          try {
-            if (xrt.exists() && (xrt.getWeight(XRayTransition.NormalizeKLM) >= mMajorWeight) && (xrt.getEnergy() > ToSI.keV(0.1)))
-               res.add(new KLMLine.Transition(xrt));
-         } catch (final EPQException e) {
-            // Just ignore it...
+            this.updateElement(mElementIndex);
+         } catch (EPQException e) {
+            // Ignore
          }
-      }
-      return res;
+      return elms;
    }
 
    TreeSet<KLMLine> selectedKLMs() {
@@ -360,26 +344,24 @@ public class KLMTreePanel extends JPanel implements ActionListener {
       addKLMs(toAdd);
       removeTemporaryKLMs(lines);
    }
-   
+
    void removeTemporaryKLMs(Collection<KLMLine> lines) {
-      if(mTemporary.removeAll(lines)) {
-         fireTemporaryLinesActionPerformed(new KLMActionEvent(this,  lines,  KLMAction.REMOVE_LINES)) ;
+      if (mTemporary.removeAll(lines)) {
+         fireTemporaryLinesActionPerformed(new KLMActionEvent(this, lines, KLMAction.REMOVE_LINES));
       }
    }
-   
+
    void removeKLMs(Collection<KLMLine> lines) {
-      if(mSelected.removeAll(lines)) {
+      if (mSelected.removeAll(lines)) {
          fireVisibleLinesActionPerformed(new KLMActionEvent(this, lines, KLMAction.REMOVE_LINES));
       }
    }
-   
+
    void addKLMs(Collection<KLMLine> lines) {
-      if(mSelected.addAll(lines)) {
+      if (mSelected.addAll(lines)) {
          fireVisibleLinesActionPerformed(new KLMActionEvent(this, lines, KLMAction.ADD_LINES));
       }
    }
-   
-   
 
    private void initialize() {
       final CellConstraints cc0 = new CellConstraints(), cc1 = new CellConstraints();
@@ -660,6 +642,28 @@ public class KLMTreePanel extends JPanel implements ActionListener {
       updateElement(idx);
    }
 
+   public TreeSet<KLMLine> getDefaultKLMs(Element elm) {
+      final String[] names = new String[]{XRayTransitionSet.K_ALPHA, XRayTransitionSet.K_BETA, //
+            XRayTransitionSet.L_ALPHA, XRayTransitionSet.L_BETA, XRayTransitionSet.L_GAMMA, XRayTransitionSet.L_OTHER, XRayTransitionSet.L_NU,
+            XRayTransitionSet.L_L, //
+            XRayTransitionSet.M_ALPHA, XRayTransitionSet.M_BETA, XRayTransitionSet.M_GAMMA, XRayTransitionSet.M_OTHER, //
+            XRayTransitionSet.N_FAMILY, //
+      };
+      TreeSet<KLMLine> res = new TreeSet<KLMLine>();
+      for (String name : names) {
+         final XRayTransitionSet xrts = new XRayTransitionSet(elm, name, mMinWeight);
+         for (XRayTransition xrt : xrts) {
+            try {
+               if (xrt.getEnergy() < mMaxEnergy)
+                  res.add(new KLMLine.Transition(xrt));
+            } catch (EPQException e) {
+               // Ignore
+            }
+         }
+      }
+      return res;
+   }
+
    public void updateElement(int idx) throws EPQException {
       final int newIdx = Math2.bound(idx, 0, mElementOrder.length);
       if (mElementIndex != newIdx) {
@@ -677,8 +681,8 @@ public class KLMTreePanel extends JPanel implements ActionListener {
          jTextField_Element.setText(elm.toAbbrev());
          jScrollBar_Z.getModel().setValue(mElementIndex);
          final String[] kFam = new String[]{XRayTransitionSet.K_ALPHA, XRayTransitionSet.K_BETA};
-         final String[] lFam = new String[]{XRayTransitionSet.L_ALPHA, XRayTransitionSet.L_BETA, XRayTransitionSet.L_GAMMA,
-               XRayTransitionSet.L_OTHER};
+         final String[] lFam = new String[]{XRayTransitionSet.L_ALPHA, XRayTransitionSet.L_BETA, XRayTransitionSet.L_GAMMA, XRayTransitionSet.L_NU,
+               XRayTransitionSet.L_L, XRayTransitionSet.L_OTHER};
          final String[] mFam = new String[]{XRayTransitionSet.M_ALPHA, XRayTransitionSet.M_BETA, XRayTransitionSet.M_GAMMA,
                XRayTransitionSet.M_OTHER};
          final String[] nFam = new String[]{XRayTransitionSet.N_FAMILY};
@@ -687,15 +691,15 @@ public class KLMTreePanel extends JPanel implements ActionListener {
          final String[][] lines = new String[][]{kFam, lFam, mFam, nFam};
          final CheckNode root = new CheckNode(elm.toAbbrev());
          root.addActionListener(this);
-         CheckNode minor = null, esc = null;
+         CheckNode esc = null;
          final TreeSet<AtomicShell> shells = new TreeSet<AtomicShell>();
          for (int i = 0; i < fams.length; ++i) {
-            CheckNode fam = null, famMinor = null;
+            CheckNode fam = null;
             final String[] names = lines[i];
             for (final String name : names) {
                final XRayTransitionSet xrts = new XRayTransitionSet(elm, name, mMinWeight);
                if (xrts.size() > 0) {
-                  CheckNode dmtn = null, dmtn_m = null;
+                  CheckNode dmtn = null;
                   for (final XRayTransition xrt : xrts.getTransitions()) {
                      if (xrt.getEnergy() > mMaxEnergy)
                         continue;
@@ -703,35 +707,18 @@ public class KLMTreePanel extends JPanel implements ActionListener {
                      final KLMLine.Transition klmTr = new KLMLine.Transition(xrt);
                      final CheckNode xrtNode = new CheckNode(klmTr);
                      xrtNode.addActionListener(this);
-                     if (xrt.getWeight(XRayTransition.NormalizeKLM) >= mMajorWeight) {
-                        if (dmtn == null) {
-                           dmtn = new CheckNode(name);
-                           dmtn.addActionListener(this);
-                           if (fam == null) {
-                              fam = new CheckNode(fams[i]);
-                              fam.addActionListener(this);
-                              root.add(fam);
-                           }
-                           fam.add(dmtn);
-                        }
-                        dmtn.add(xrtNode);
-                     } else {
-                        if (dmtn_m == null) {
-                           dmtn_m = new CheckNode(name);
-                           dmtn_m.addActionListener(this);
-                           if (famMinor == null) {
-                              famMinor = new CheckNode(fams[i]);
-                              famMinor.addActionListener(this);
-                              if (minor == null) {
-                                 minor = new CheckNode("Minor");
-                                 minor.addActionListener(this);
-                              }
-                              minor.add(famMinor);
-                           }
-                           famMinor.add(dmtn_m);
-                        }
-                        dmtn_m.add(xrtNode);
+                     if (dmtn == null) {
+                        dmtn = new CheckNode(name);
+                        dmtn.addActionListener(this);
                      }
+                     if (fam == null) {
+                        fam = new CheckNode(fams[i]);
+                        fam.addActionListener(this);
+                        root.add(fam);
+                     }
+                     fam.add(dmtn);
+                     dmtn.add(xrtNode);
+
                      final boolean trSel = mSelected.contains(klmTr);
                      xrtNode.setSelected(trSel);
                      if (!trSel)
@@ -753,8 +740,6 @@ public class KLMTreePanel extends JPanel implements ActionListener {
                }
             }
          }
-         if (minor != null)
-            root.add(minor);
          if (esc != null)
             root.add(esc);
          if (shells.size() > 0) {
@@ -768,8 +753,6 @@ public class KLMTreePanel extends JPanel implements ActionListener {
                   shellNode.add(edgeNode);
                   final boolean edgeSel = mSelected.contains(klmEdge);
                   shellNode.setSelected(edgeSel);
-                  // if(!edgeSel)
-                  // mTemporary.add(klmEdge);
                }
             root.add(shellNode);
          }
@@ -785,7 +768,7 @@ public class KLMTreePanel extends JPanel implements ActionListener {
          al.actionPerformed(e);
    }
 
-   public synchronized void removeTemporaryLinesActionListener(ActionListener l) {
+   public void removeTemporaryLinesActionListener(ActionListener l) {
       if (mTemporaryLinesActionListeners.contains(l)) {
          final Vector<ActionListener> v = new Vector<ActionListener>(mTemporaryLinesActionListeners);
          v.removeElement(l);
@@ -793,7 +776,7 @@ public class KLMTreePanel extends JPanel implements ActionListener {
       }
    }
 
-   public synchronized void addTemporaryLinesActionListener(ActionListener l) {
+   public void addTemporaryLinesActionListener(ActionListener l) {
       if (!mTemporaryLinesActionListeners.contains(l)) {
          final Vector<ActionListener> v = new Vector<ActionListener>(mTemporaryLinesActionListeners);
          v.addElement(l);
@@ -806,7 +789,7 @@ public class KLMTreePanel extends JPanel implements ActionListener {
          al.actionPerformed(e);
    }
 
-   public synchronized void removeVisibleLinesActionListener(ActionListener l) {
+   public void removeVisibleLinesActionListener(ActionListener l) {
       if (mVisibleLinesActionListeners.contains(l)) {
          final Vector<ActionListener> v = new Vector<ActionListener>(mVisibleLinesActionListeners);
          v.removeElement(l);
@@ -814,7 +797,7 @@ public class KLMTreePanel extends JPanel implements ActionListener {
       }
    }
 
-   public synchronized void addVisibleLinesActionListener(ActionListener l) {
+   public void addVisibleLinesActionListener(ActionListener l) {
       if (!mVisibleLinesActionListeners.contains(l)) {
          final Vector<ActionListener> v = new Vector<ActionListener>(mVisibleLinesActionListeners);
          v.addElement(l);
@@ -857,11 +840,11 @@ public class KLMTreePanel extends JPanel implements ActionListener {
                removed.add(inBefore);
          if (removed.size() > 0) {
             mTemporary.addAll(removed);
-            {
+            {// Remove from visible
                final KLMActionEvent kae = new KLMActionEvent(this, removed, KLMAction.REMOVE_LINES);
                fireVisibleLinesActionPerformed(kae);
             }
-            {
+            { // Add back into temporary
                final KLMActionEvent kae = new KLMActionEvent(this, removed, KLMAction.ADD_LINES);
                fireTemporaryLinesActionPerformed(kae);
             }
