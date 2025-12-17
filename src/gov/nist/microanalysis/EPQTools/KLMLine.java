@@ -2,11 +2,14 @@ package gov.nist.microanalysis.EPQTools;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
 
 import gov.nist.microanalysis.EPQLibrary.AtomicShell;
 import gov.nist.microanalysis.EPQLibrary.EPQException;
@@ -27,7 +30,7 @@ import gov.nist.microanalysis.EPQLibrary.XRayTransitionSet;
  * <p>
  * Company: National Institute of Standards and Technology
  * </p>
- * 
+ *
  * @author Daniel "Ooblioob" Davis, Nicholas W. M. Ritchie
  * @version 1.0
  */
@@ -53,7 +56,7 @@ abstract public class KLMLine implements Comparable<KLMLine> {
       public String toString() {
          return mName;
       }
-   };
+   }
 
    enum KLMLineType {
       InvalidType, Satellite, SumPeak, EscapePeak, KEdge, LEdge, MEdge, NEdge, KTransition, LTransition, MTransition, NTransition;
@@ -73,7 +76,7 @@ abstract public class KLMLine implements Comparable<KLMLine> {
    protected double mEnergy;
    protected double mAmplitude;
 
-   public static class Transition extends KLMLine {
+   public static class Transition extends KLMLine implements Comparable<KLMLine> {
       private final XRayTransition mTransition;
 
       public Transition(XRayTransition xrt) throws EPQException {
@@ -148,23 +151,57 @@ abstract public class KLMLine implements Comparable<KLMLine> {
          return res;
       }
 
+      /**
+       * compareTo - Allows to KLM lines to be ordered.
+       *
+       * @param kl
+       *           KLMLine
+       * @return int
+       */
+      @Override
+      public int compareTo(KLMLine kl) {
+         // Ordering: Transition, SumPeak, EscapePeak, Edge
+         if (kl instanceof Transition tr) {
+            return this.mTransition.compareTo(tr.mTransition);
+         } else {
+            return 1; // Transitions are always come before other types
+            // return (kl instanceof Transition) || (kl instanceof SumPeak) ||
+            // (kl instanceof EscapePeak) || (kl instanceof Edge) ? -1 : 1;
+         }
+      }
+
+      @Override
+      public boolean equals(Object obj) {
+         if (obj == null) {
+            return false;
+         }
+         if (this == obj) {
+            return true;
+         }
+         if (obj instanceof Transition tr) {
+            return this.mTransition.equals(tr.mTransition);
+         }
+         return false;
+      }
    }
 
    public static Set<Transition> suggestKLM(Element elm, double eMax) {
       final int[] DEFAULT_KLM_LINES = {XRayTransition.KA1, XRayTransition.KB1, XRayTransition.LA1, XRayTransition.LB1, XRayTransition.MA1,
             XRayTransition.MA2, XRayTransition.MB, XRayTransition.MG};
-      final Set<Transition> lines = new TreeSet<Transition>();
-      for (final int tr : DEFAULT_KLM_LINES)
+      final Set<Transition> lines = new TreeSet<>();
+      for (final int tr : DEFAULT_KLM_LINES) {
          try {
-            if (XRayTransition.exists(elm, tr) && (XRayTransition.getEnergy(elm, tr) < eMax))
+            if (XRayTransition.exists(elm, tr) && (XRayTransition.getEnergy(elm, tr) < eMax)) {
                lines.add(new KLMLine.Transition(new XRayTransition(elm, tr)));
+            }
          } catch (EPQException e) {
             // Ignore
          }
+      }
       return lines;
    }
 
-   public static class Edge extends KLMLine {
+   public static class Edge extends KLMLine implements Comparable<KLMLine> {
 
       private final AtomicShell mShell;
 
@@ -174,8 +211,9 @@ abstract public class KLMLine implements Comparable<KLMLine> {
             final int fam = sh.getFamily();
             for (int shell = AtomicShell.getFirstInFamily(fam); shell <= AtomicShell.getLastInFamily(fam); shell++) {
                final AtomicShell tmp = new AtomicShell(sh.getElement(), shell);
-               if (tmp.getGroundStateOccupancy() > res.getGroundStateOccupancy())
+               if (tmp.getGroundStateOccupancy() > res.getGroundStateOccupancy()) {
                   res = tmp;
+               }
             }
          } catch (final Exception e) {
             e.printStackTrace();
@@ -256,9 +294,44 @@ abstract public class KLMLine implements Comparable<KLMLine> {
          return res;
       }
 
+      /**
+       * compareTo - Allows to KLM lines to be ordered.
+       *
+       * @param kl
+       *           KLMLine
+       * @return int
+       */
+      @Override
+      public int compareTo(KLMLine kl) {
+         // Ordering: Transition, SumPeak, EscapePeak, Edge
+         if (kl instanceof Edge edge) {
+            return this.mShell.compareTo(edge.mShell);
+         } else {
+            // Edges are always last.
+            return -1;
+            // return (kl instanceof Transition) || (kl instanceof SumPeak) ||
+            // (kl instanceof EscapePeak) || (kl instanceof Edge) ? -1 : 1;
+
+         }
+      }
+
+      @Override
+      public boolean equals(Object obj) {
+         if (obj == null) {
+            return false;
+         }
+         if (this == obj) {
+            return true;
+         }
+         if (obj instanceof Edge edge) {
+            return this.mShell == edge.mShell;
+         }
+         return false;
+      }
+
    }
 
-   public static class EscapePeak extends KLMLine {
+   public static class EscapePeak extends KLMLine implements Comparable<KLMLine> {
       private final XRayTransition mTransition;
 
       static private final XRayTransition SI_K = new XRayTransition(Element.Si, XRayTransition.KA1);
@@ -303,49 +376,33 @@ abstract public class KLMLine implements Comparable<KLMLine> {
       }
 
       @Override
-      public boolean isAssociated(KLMLine line) {
-         if (line instanceof EscapePeak) {
-            final EscapePeak tr = (EscapePeak) line;
-            return mTransition.equals(tr.mTransition);
-         }
-         return false;
-      }
-
-      @Override
       public int hashCode() {
          return mTransition.hashCode() + 0xFEEE;
-      }
-
-      @Override
-      public boolean equals(Object obj) {
-         if (obj instanceof EscapePeak) {
-            final EscapePeak ep = (EscapePeak) obj;
-            return ep.mTransition.equals(mTransition);
-         }
-         return false;
       }
 
       /**
        * Suggest a list of possible escape peaks for the specified element from
        * the specified list of possible lines with energy less then eMax
-       * 
+       *
        * @param elm
        * @return Set&lt;EscapePeak&gt;
        */
       static public Set<EscapePeak> suggestEscapePeak(Element elm) {
          int[] lines = {XRayTransition.KA1, XRayTransition.LA1, XRayTransition.MA1};
-         final HashSet<EscapePeak> res = new HashSet<EscapePeak>();
-         for (final int line : lines)
+         final HashSet<EscapePeak> res = new HashSet<>();
+         for (final int line : lines) {
             try {
                if (XRayTransition.exists(elm, line)) {
                   final XRayTransition xrt = new XRayTransition(elm, line);
                   final double e = xrt.getEnergy();
-                  if (e > ToSI.keV(0.02) + SI_K.getEnergy())
+                  if (e > ToSI.keV(0.02) + SI_K.getEnergy()) {
                      res.add(new EscapePeak(xrt));
+                  }
                }
             } catch (final Exception e) {
                // Just ignore it
             }
+         }
          return res;
       }
 
@@ -358,29 +415,80 @@ abstract public class KLMLine implements Comparable<KLMLine> {
       public KLMLineType getType() {
          return KLMLine.KLMLineType.EscapePeak;
       }
+
+      /**
+       * compareTo - Allows to KLM lines to be ordered.
+       *
+       * @param kl
+       *           KLMLine
+       * @return int
+       */
+      @Override
+      public int compareTo(KLMLine kl) {
+         // Ordering: Transition, SumPeak, EscapePeak, Edge
+         if (kl instanceof EscapePeak esc) {
+            return this.mTransition.compareTo(esc.mTransition);
+         } else {
+            return (kl instanceof Transition) || (kl instanceof SumPeak) ? -1 : 1;
+         }
+      }
+
+      @Override
+      public boolean equals(Object obj) {
+         if (obj == null) {
+            return false;
+         }
+         if (this == obj) {
+            return true;
+         }
+         if (obj instanceof EscapePeak esc) {
+            return this.mTransition == esc.mTransition;
+         }
+         return false;
+      }
+
    }
 
-   public static class SumPeak extends KLMLine {
-      private final XRayTransition[] mTransitions;
+   public static class SumPeak extends KLMLine implements Comparable<KLMLine> {
+      private final ArrayList<XRayTransition> mTransitions;
       private final String mName;
 
       public SumPeak(XRayTransition xrt1, XRayTransition xrt2) throws EPQException {
          super(xrt1.getEnergy() + xrt2.getEnergy(), 0.1);
-         mTransitions = new XRayTransition[]{xrt1, xrt2};
-         if (xrt1.equals(xrt2))
+         mTransitions = new ArrayList<>();
+         mTransitions.add(xrt1);
+         mTransitions.add(xrt2);
+         Collections.sort(mTransitions);
+         if (xrt1.equals(xrt2)) {
             mName = "2\u00B7" + xrt1.toString();
-         else
+         } else {
             mName = xrt1.toString() + "+" + xrt2.toString();
+         }
+      }
+
+      public SumPeak(XRayTransition xrt1, XRayTransition xrt2, XRayTransition xrt3) throws EPQException {
+         super(xrt1.getEnergy() + xrt2.getEnergy() + xrt3.getEnergy(), 0.1);
+         mTransitions = new ArrayList<>();
+         mTransitions.add(xrt1);
+         mTransitions.add(xrt2);
+         mTransitions.add(xrt3);
+         Collections.sort(mTransitions);
+         if (xrt1.equals(xrt2) && xrt1.equals(xrt3)) {
+            mName = "3\u00B7" + xrt1.toString();
+         } else {
+            mName = xrt1.toString() + "+" + xrt2.toString() + "+" + xrt3.toString();
+         }
       }
 
       private static double sumXRT(Collection<XRayTransition> xrts) {
          double res = 0.0;
-         for (XRayTransition xrt : xrts)
+         for (XRayTransition xrt : xrts) {
             try {
                res += xrt.getEnergy();
             } catch (EPQException e) {
                e.printStackTrace();
             }
+         }
          return res;
       }
 
@@ -403,30 +511,26 @@ abstract public class KLMLine implements Comparable<KLMLine> {
                sb.append(me.getKey().toString());
             }
          }
-         mTransitions = xrts.toArray(new XRayTransition[xrts.size()]);
+         mTransitions = new ArrayList<>(xrts);
+         Collections.sort(mTransitions);
          mName = sb.toString();
-      }
-
-      public SumPeak(XRayTransition xrt, int n) throws EPQException {
-         super(xrt.getEnergy() * n, 0.1);
-         mTransitions = new XRayTransition[n];
-         for (int i = 0; i < n; ++i)
-            mTransitions[i] = xrt;
-         mName = Integer.toString(n) + "\u00B7" + xrt.toString();
       }
 
       @Override
       public String toLabel(LabelType lt) {
          final StringBuffer sb = new StringBuffer();
-         final TreeMap<XRayTransition, Integer> count = new TreeMap<XRayTransition, Integer>();
-         for (final XRayTransition mTransition : mTransitions)
-            if (count.containsKey(mTransition))
+         final TreeMap<XRayTransition, Integer> count = new TreeMap<>();
+         for (final XRayTransition mTransition : mTransitions) {
+            if (count.containsKey(mTransition)) {
                count.put(mTransition, Integer.valueOf(count.get(mTransition) + 1));
-            else
+            } else {
                count.put(mTransition, Integer.valueOf(1));
+            }
+         }
          for (final Map.Entry<XRayTransition, Integer> me : count.entrySet()) {
-            if (sb.length() > 0)
+            if (sb.length() > 0) {
                sb.append("+");
+            }
             if (me.getValue().intValue() > 1) {
                sb.append(me.getValue().toString());
                sb.append("\u00B7");
@@ -463,75 +567,68 @@ abstract public class KLMLine implements Comparable<KLMLine> {
 
       @Override
       public AtomicShell getShell() {
-         return mTransitions[0].getDestination();
+         return mTransitions.get(0).getDestination();
       }
 
       @Override
       public int hashCode() {
          int hash = 0x0;
-         for (final XRayTransition xrt : mTransitions)
+         for (final XRayTransition xrt : mTransitions) {
             hash ^= xrt.hashCode();
+         }
          return hash;
       }
 
       @Override
       public boolean contains(Element elm) {
-         for (final XRayTransition xrt : mTransitions)
-            if (xrt.getElement().equals(elm))
+         for (final XRayTransition xrt : mTransitions) {
+            if (xrt.getElement().equals(elm)) {
                return true;
-         return false;
-      }
-
-      @Override
-      public boolean isAssociated(KLMLine line) {
-         if (line instanceof Transition) {
-            final Transition tr = (Transition) line;
-            for (final XRayTransition xrt : mTransitions)
-               if (xrt.equals(tr.mTransition))
-                  return true;
+            }
          }
          return false;
       }
 
-      static public Set<SumPeak> suggestSumPeaks(Set<Element> elms, double lowE, double highE, int order, int[] lines) {
-         final ArrayList<XRayTransition> xrts = new ArrayList<XRayTransition>();
-         for (final Element elm : elms)
-            for (final int line : lines)
-               try {
-                  if (XRayTransition.exists(elm, line) && (XRayTransition.getEnergy(elm, line) < highE))
-                     xrts.add(new XRayTransition(elm, line));
-               } catch (final EPQException e3) {
-                  // May happen sometimes but it is harmless.
+      static public Set<SumPeak> suggestSumPeaks(Set<Element> elms, double lowE, double highE, int order) {
+         final HashSet<XRayTransition> xrts = new HashSet<>();
+         for (final Element elm : elms) {
+            for (XRayTransition xrt : new XRayTransitionSet(elm, 0.0, highE)) {
+               if (xrt.getWeight(XRayTransition.NormalizeFamily) > 0.5) {
+                  xrts.add(xrt);
                }
-         final HashSet<SumPeak> res = new HashSet<SumPeak>();
-         for (int i = 0; i < xrts.size(); ++i)
-            for (int j = i; j < xrts.size(); ++j) {
-               final XRayTransition xrt1 = xrts.get(i);
-               final XRayTransition xrt2 = xrts.get(j);
+            }
+         }
+         final HashSet<SumPeak> res = new HashSet<>();
+         for (XRayTransition xrt1 : xrts) {
+            for (XRayTransition xrt2 : xrts) {
                try {
                   final double e1 = xrt1.getEnergy();
                   final double e2 = xrt2.getEnergy();
-                  if (((e1 + e2) >= lowE) && ((e1 + e2) <= highE))
+                  if (((e1 + e2) >= lowE) && ((e1 + e2) <= highE)) {
                      res.add(new SumPeak(xrt1, xrt2));
+                  }
+                  if (order > 2) {
+                     for (XRayTransition xrt3 : xrts) {
+                        final double e3 = xrt3.getEnergy();
+                        if (((e1 + e2 + e3) >= lowE) && ((e1 + e2 + e3) <= highE)) {
+                           res.add(new SumPeak(xrt1, xrt2, xrt3));
+                        }
+                     }
+                  }
                } catch (final EPQException e) {
                   System.err.println("This should never happen!");
                }
             }
+         }
          return res;
       }
 
       @Override
       public String toSiegbahn() {
-         if ((mTransitions.length == 2) && (mTransitions[0].equals(mTransitions[1])))
-            return Integer.toString(2) + "\u00B7" + mTransitions[1].getSiegbahnName();
-         else {
-            final StringBuffer sb = new StringBuffer();
-            sb.append(mTransitions[0].getSiegbahnName());
-            for (int i = 1; i < mTransitions.length; ++i) {
-               sb.append("+");
-               sb.append(mTransitions[1].getSiegbahnName());
-            }
-            return sb.toString();
+         if (mTransitions.stream().allMatch(a -> a.equals(mTransitions.get(0)))) {
+            return Integer.toString(mTransitions.size()) + "\u00B7" + mTransitions.get(0).getSiegbahnName();
+         } else {
+            return mTransitions.stream().map(xrt -> xrt.getSiegbahnName()).collect(Collectors.joining("+"));
          }
       }
 
@@ -540,11 +637,60 @@ abstract public class KLMLine implements Comparable<KLMLine> {
          return KLMLine.KLMLineType.SumPeak;
       }
 
+      /**
+       * compareTo - Allows to KLM lines to be ordered.
+       *
+       * @param kl
+       *           KLMLine
+       * @return int
+       */
+      @Override
+      public int compareTo(KLMLine kl) {
+         // Ordering: Transition, SumPeak, EscapePeak, Edge
+         if (kl instanceof SumPeak sum) {
+            Iterator<XRayTransition> i1 = this.mTransitions.iterator();
+            Iterator<XRayTransition> i2 = sum.mTransitions.iterator();
+            while (i1.hasNext() && i2.hasNext()) {
+               XRayTransition xrt1 = i1.next();
+               XRayTransition xrt2 = i2.next();
+               int cmp = xrt1.compareTo(xrt2);
+               if (cmp != 0) {
+                  return cmp;
+               }
+            }
+            return i1.hasNext() ? -1 : (i2.hasNext() ? 1 : 0);
+         } else {
+            // return (kl instanceof Transition) || (kl instanceof SumPeak) ||
+            // (kl instanceof EscapePeak) || (kl instanceof Edge) ? -1 : 1;
+            return (kl instanceof Transition) ? -1 : 1;
+         }
+      }
+
+      @Override
+      public boolean equals(Object obj) {
+         if (obj == null) {
+            return false;
+         }
+         if (this == obj) {
+            return true;
+         }
+         if (obj instanceof SumPeak sum) {
+            Iterator<XRayTransition> i1 = mTransitions.iterator();
+            Iterator<XRayTransition> i2 = sum.mTransitions.iterator();
+            while (i1.hasNext() && i2.hasNext()) {
+               if (i1.next() != i2.next()) {
+                  return false;
+               }
+            }
+            return !(i1.hasNext() || i2.hasNext());
+         }
+         return false;
+      }
    }
 
    /**
     * Constructs a KLMLine representing a transition
-    * 
+    *
     * @param energy
     * @param amplitude
     */
@@ -555,7 +701,7 @@ abstract public class KLMLine implements Comparable<KLMLine> {
 
    /**
     * getEnergy - Returns the energy of a particular KLM line in Joules.
-    * 
+    *
     * @return double
     */
    public double getEnergy() {
@@ -564,53 +710,16 @@ abstract public class KLMLine implements Comparable<KLMLine> {
 
    /**
     * getAmplitude - returns the amplitude of a particular KLM line.
-    * 
+    *
     * @return double
     */
    public double getAmplitude() {
       return mAmplitude;
    }
 
-   /**
-    * compareTo - Allows to KLM lines to be ordered.
-    * 
-    * @param kl
-    *           KLMLine
-    * @return int
-    */
-   @Override
-   public int compareTo(KLMLine kl) {
-      final int res = getShell().compareTo(kl.getShell());
-      return res == 0 ? toString().compareTo(kl.toString()) : res;
-   }
-
-   @Override
-   public boolean equals(Object obj) {
-      if (obj == null)
-         return false;
-      if (this == obj)
-         return true;
-      if (obj.getClass() == this.getClass()) {
-         final KLMLine l2 = (KLMLine) obj;
-         return (l2.mAmplitude == this.mAmplitude) && (l2.mEnergy == this.mEnergy) && (l2.toString().equals(this.toString()));
-      }
-      return false;
-   }
-
    abstract public boolean contains(Element elm);
 
    abstract public String toSiegbahn();
-
-   /**
-    * Is the specified KLMLine equal to this line or is the specified KLMLine a
-    * sub-component of this line (ie One of the peaks in a sum peak.)
-    * 
-    * @param line
-    * @return boolean
-    */
-   public boolean isAssociated(KLMLine line) {
-      return equals(line);
-   }
 
    public KLMLineType getType() {
       return KLMLine.KLMLineType.InvalidType;
@@ -649,7 +758,7 @@ abstract public class KLMLine implements Comparable<KLMLine> {
    }
 
    static private KLMLine parseKLM(String str) throws EPQException {
-    
+
       if (str.startsWith("Sum:")) {
          Collection<XRayTransition> lines = new ArrayList<>();
          String[] ss = str.substring(4).trim().split("\\+");
@@ -657,8 +766,9 @@ abstract public class KLMLine implements Comparable<KLMLine> {
             if (s.matches("[2-9]·.*")) {
                int n = Integer.parseInt(s.substring(0, 1));
                XRayTransition xrt = XRayTransition.parseString(s.substring(2).trim());
-               for (int i = 0; i < n; ++i)
+               for (int i = 0; i < n; ++i) {
                   lines.add(xrt);
+               }
             } else {
                XRayTransition xrt = XRayTransition.parseString(s.trim());
                lines.add(xrt);
@@ -666,7 +776,7 @@ abstract public class KLMLine implements Comparable<KLMLine> {
          }
          return new KLMLine.SumPeak(lines);
       } else if (str.startsWith("Escape:")) {
-         XRayTransition xrt = XRayTransition.parseString(str.substring(7, str.length()-7).trim());
+         XRayTransition xrt = XRayTransition.parseString(str.substring(7, str.length() - 7).trim());
          return new KLMLine.EscapePeak(xrt);
       } else if (str.startsWith("Edge:")) {
          AtomicShell ass = AtomicShell.parseString(str.substring(5).trim());
@@ -680,11 +790,12 @@ abstract public class KLMLine implements Comparable<KLMLine> {
    }
 
    static ArrayList<KLMLine> importKLMLines(Collection<String> lines) {
-      ArrayList<KLMLine> res = new ArrayList<KLMLine>();
-      for(String line : lines) {
+      ArrayList<KLMLine> res = new ArrayList<>();
+      for (String line : lines) {
          try {
-            if(!line.trim().isEmpty())
+            if (!line.trim().isEmpty()) {
                res.add(KLMLine.parseKLM(line));
+            }
          } catch (EPQException e) {
             e.printStackTrace();
          }

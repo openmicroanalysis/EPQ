@@ -861,11 +861,7 @@ final public class XRayTransition implements Comparable<XRayTransition>, Cloneab
    public boolean equals(Object obj) {
       if (obj == this)
          return true;
-      if (obj instanceof XRayTransition) {
-         final XRayTransition xrt = (XRayTransition) obj;
-         return mSource.equals(xrt.mSource) && mDestination.equals(xrt.mDestination);
-      }
-      return false;
+      return (obj instanceof XRayTransition xrt) && mSource.equals(xrt.mSource) && mDestination.equals(xrt.mDestination);
    }
 
    @Override
@@ -887,28 +883,14 @@ final public class XRayTransition implements Comparable<XRayTransition>, Cloneab
     */
    @Override
    public int compareTo(XRayTransition xrt) {
-      final int thisAn = getElement().getAtomicNumber();
-      final int otherAn = xrt.getElement().getAtomicNumber();
-      if (thisAn < otherAn)
-         return -1;
-      else if (thisAn == otherAn) {
-         int thisShell = getDestinationShell();
-         int otherShell = xrt.getDestinationShell();
-         if (thisShell < otherShell)
-            return -1;
-         else if (thisShell == otherShell) {
-            thisShell = getSourceShell();
-            otherShell = xrt.getSourceShell();
-            if (thisShell < otherShell)
-               return -1;
-            else if (thisShell == otherShell)
-               return 0;
-            else
-               return 1;
-         } else
-            return 1;
-      } else
-         return 1;
+      int res = Integer.compare(getElement().getAtomicNumber(), xrt.getElement().getAtomicNumber());
+      if (res == 0) {
+         res = Integer.compare(getDestinationShell(), xrt.getDestinationShell());
+         if (res == 0) {
+            res = Integer.compare(getSourceShell(), xrt.getSourceShell());
+         }
+      }
+      return res;
    }
 
    /**

@@ -317,7 +317,7 @@ public class KLMTreePanel extends JPanel implements ActionListener {
       final ArrayList<KLMLine> setThese = new ArrayList<KLMLine>();
       for (final Element elm : elms)
          setThese.addAll(getDefaultKLMs(elm));
-      setKLMs(setThese);
+      addKLMs(setThese);
       return elms;
    }
 
@@ -342,31 +342,44 @@ public class KLMTreePanel extends JPanel implements ActionListener {
       return res;
    }
 
-   ArrayList<KLMLine> selectedKLMs() {
-      return new ArrayList<>(mSelected);
+   TreeSet<KLMLine> selectedKLMs() {
+      return new TreeSet<>(mSelected);
 
    }
 
    void setKLMs(Collection<KLMLine> lines) {
-      final ArrayList<KLMLine> toAdd = new ArrayList<KLMLine>();
-      final ArrayList<KLMLine> toRemove = new ArrayList<KLMLine>();
+      final TreeSet<KLMLine> toAdd = new TreeSet<KLMLine>();
+      final TreeSet<KLMLine> toRemove = new TreeSet<KLMLine>();
+      for (final KLMLine line : mSelected)
+         if (!lines.contains(line))
+            toRemove.add(line);
       for (final KLMLine line : lines)
          if (!mSelected.contains(line))
             toAdd.add(line);
-      for (final KLMLine line : lines)
-         if (mTemporary.contains(line))
-            toRemove.add(line);
-      if (toRemove.size() > 0) {
-         mTemporary.removeAll(toRemove);
-         final KLMActionEvent kae = new KLMActionEvent(this, toRemove, KLMAction.REMOVE_LINES);
-         fireTemporaryLinesActionPerformed(kae);
-      }
-      if (toAdd.size() > 0) {
-         mSelected.addAll(toAdd);
-         final KLMActionEvent kae = new KLMActionEvent(this, toAdd, KLMAction.ADD_LINES);
-         fireVisibleLinesActionPerformed(kae);
+      removeKLMs(toRemove);
+      addKLMs(toAdd);
+      removeTemporaryKLMs(lines);
+   }
+   
+   void removeTemporaryKLMs(Collection<KLMLine> lines) {
+      if(mTemporary.removeAll(lines)) {
+         fireTemporaryLinesActionPerformed(new KLMActionEvent(this,  lines,  KLMAction.REMOVE_LINES)) ;
       }
    }
+   
+   void removeKLMs(Collection<KLMLine> lines) {
+      if(mSelected.removeAll(lines)) {
+         fireVisibleLinesActionPerformed(new KLMActionEvent(this, lines, KLMAction.REMOVE_LINES));
+      }
+   }
+   
+   void addKLMs(Collection<KLMLine> lines) {
+      if(mSelected.addAll(lines)) {
+         fireVisibleLinesActionPerformed(new KLMActionEvent(this, lines, KLMAction.ADD_LINES));
+      }
+   }
+   
+   
 
    private void initialize() {
       final CellConstraints cc0 = new CellConstraints(), cc1 = new CellConstraints();
@@ -529,8 +542,8 @@ public class KLMTreePanel extends JPanel implements ActionListener {
                final int option = jfc.showSaveDialog(KLMTreePanel.this);
                if (option == JFileChooser.APPROVE_OPTION) {
                   File f = jfc.getSelectedFile();
-                  if(!f.getName().toLowerCase().endsWith(".klm")) {
-                     f = new File(f.getParent(), f.getName()+".klm");
+                  if (!f.getName().toLowerCase().endsWith(".klm")) {
+                     f = new File(f.getParent(), f.getName() + ".klm");
                   }
                   String lines = KLMLine.exportKLMLines(KLMTreePanel.this.selectedKLMs());
                   final PrintWriter pw = new PrintWriter(f, "UTF-8");

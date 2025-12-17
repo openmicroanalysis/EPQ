@@ -40,7 +40,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.Enumeration;
 import java.util.Iterator;
 import java.util.List;
@@ -69,7 +68,6 @@ import gov.nist.microanalysis.EPQLibrary.ISpectrumData;
 import gov.nist.microanalysis.EPQLibrary.SpectrumProperties;
 import gov.nist.microanalysis.EPQLibrary.SpectrumUtils;
 import gov.nist.microanalysis.EPQLibrary.ToSI;
-import gov.nist.microanalysis.EPQLibrary.XRayTransition;
 import gov.nist.microanalysis.EPQTools.KLMLine.LabelType;
 import gov.nist.microanalysis.EPQTools.KLMLine.SumPeak;
 import gov.nist.microanalysis.Utility.CSVReader;
@@ -234,19 +232,19 @@ public class SpecDisplay extends JComponent {
    /**
     * Instances of KLMLine
     */
-   private final Collection<KLMLine> mLines = new ArrayList<KLMLine>();
-   private final Collection<KLMLine> mTemporaryLines = new ArrayList<KLMLine>();
+   private final Collection<KLMLine> mLines = new TreeSet<KLMLine>();
+   private final Collection<KLMLine> mTemporaryLines = new TreeSet<KLMLine>();
    private int[] mMaxHeight; // Used to scale the KLM line heights
    private double mLabelThreshold = 0.001;
 
    /**
     * Instances of Region
     */
-   private final Regions mRegions = new Regions();
+   private final List<Region> mRegions = new ArrayList<Region>();
    /**
     * Optional region to use for vertical scaling (Region Integral)
     */
-   private Regions mScalingRegions = null;
+   private List<Region> mScalingRegions = null;
    /**
     * Define the axis limits
     */
@@ -567,15 +565,7 @@ public class SpecDisplay extends JComponent {
 
    static List<EffectiveLine> buildEffectiveLines(Collection<KLMLine> lines, double tolerance) {
       final List<EffectiveLine> effs = new ArrayList<EffectiveLine>();
-      final ArrayList<KLMLine> dupLines = new ArrayList<KLMLine>(lines);
-      // Sort by element and amplitude
-      dupLines.sort(new Comparator<KLMLine>() {
-         @Override
-         public int compare(KLMLine o1, KLMLine o2) {
-            int res = Integer.compare(o1.getShell().getElement().getAtomicNumber(), o1.getShell().getElement().getAtomicNumber());
-            return res != 0 ? res : -Double.compare(o1.mAmplitude, o2.mAmplitude);
-         }
-      });
+      final TreeSet<KLMLine> dupLines = new TreeSet<KLMLine>(lines);
       for (KLMLine line : dupLines) {
          boolean added = false;
          for (EffectiveLine eff : effs) {
@@ -591,29 +581,29 @@ public class SpecDisplay extends JComponent {
    }
 
    static private class EffectiveLine {
-      private final ArrayList<KLMLine> mLines;
+      private final TreeSet<KLMLine> mLines;
       private double mAmplitude;
       private final double mTolerance;
       private double mWgtAvgCenter;
 
       private EffectiveLine(KLMLine klm, double tolerance) {
-         mLines = new ArrayList<KLMLine>();
+         mLines = new TreeSet<KLMLine>();
          mAmplitude = 0.0;
          mTolerance = tolerance;
          add(klm);
       }
 
       private boolean sameFamily(EffectiveLine eff) {
-         if (!eff.mLines.get(0).getClass().equals(mLines.get(0).getClass()))
+         if (!eff.mLines.first().getClass().equals(mLines.first().getClass()))
             return false;
-         if (eff.mLines.get(0).getShell().getElement() != mLines.get(0).getShell().getElement())
+         if (eff.mLines.first().getShell().getElement() != mLines.first().getShell().getElement())
             return false;
-         return eff.mLines.get(0).getShell().getFamily() == mLines.get(0).getShell().getFamily();
+         return eff.mLines.first().getShell().getFamily() == mLines.first().getShell().getFamily();
       }
 
       private boolean add(KLMLine klm) {
          if (mLines.isEmpty() || memberOf(klm)) {
-            assert !mLines.contains(klm);
+            assert !mLines.contains(klm) : mLines + " not contains " + klm;
             mLines.add(klm);
             mAmplitude += klm.mAmplitude;
             mWgtAvgCenter += klm.mAmplitude * klm.getEnergy();
@@ -630,7 +620,7 @@ public class SpecDisplay extends JComponent {
        * @return
        */
       public boolean memberOf(KLMLine klm) {
-         final KLMLine primary = mLines.get(0);
+         final KLMLine primary = mLines.first();
          if (klm.getType() != primary.getType())
             return false;
          if (klm.getShell().getElement() != primary.getShell().getElement())
@@ -768,17 +758,14 @@ public class SpecDisplay extends JComponent {
    }
 
    public void addKLMs(Collection<KLMLine> lines) {
+      boolean redraw = false;
       for (final KLMLine line : lines) {
-         boolean contains = false;
-         for (final KLMLine ll : mLines)
-            if (ll.equals(line)) {
-               contains = true;
-               break;
-            }
-         if (!contains)
+         if (!mLines.contains(line)) {
             mLines.add(line);
+            redraw = true;
+         }
       }
-      if (mPlotRect != null)
+      if (redraw && (mPlotRect != null))
          repaint(mPlotRect);
    }
 
@@ -791,17 +778,11 @@ public class SpecDisplay extends JComponent {
    }
 
    public void removeKLMs(Collection<KLMLine> lines) {
-      final ArrayList<KLMLine> removeMe = new ArrayList<KLMLine>();
-      for (final KLMLine line : lines)
-         for (final KLMLine kl : mLines)
-            if (kl.isAssociated(line))
-               removeMe.add(kl);
-      if (removeMe.size() > 0) {
-         for (final KLMLine rm : removeMe)
-            mLines.remove(rm);
-         if (mPlotRect != null)
-            repaint(mPlotRect);
-      }
+      boolean removed = false;
+      for (final KLMLine rm : lines)
+         removed |= mLines.remove(rm);
+      if (removed)
+         repaint(mPlotRect);
    }
 
    /**
@@ -811,9 +792,7 @@ public class SpecDisplay extends JComponent {
     */
    public void addKLM(KLMLine line) {
       if (mKLMPanel != null) {
-         ArrayList<KLMLine> selected = mKLMPanel.selectedKLMs();
-         selected.add(line);
-         mKLMPanel.setKLMs(selected);
+         mKLMPanel.addKLMs(Collections.singleton(line));
       }
    }
 
@@ -836,7 +815,7 @@ public class SpecDisplay extends JComponent {
 
    protected void drawRegions(Graphics gr) {
       gr.setColor(Color.yellow);
-      for (final Region r : mRegions.mList) {
+      for (final Region r : mRegions) {
          int x0, x1;
          x0 = xx(r.getLowEnergy());
          x1 = xx(r.getHighEnergy());
@@ -1554,10 +1533,13 @@ public class SpecDisplay extends JComponent {
 
    private void doPopup(int x, int y) {
       final double e = mEMin + (((x - mPlotRect.x) * (mEMax - mEMin)) / mPlotRect.width);
-      if (mRegions.inRegion(e))
-         doRegionPopup(x, y);
-      else
-         doDefaultPopup(x, y);
+      for(Region r : mRegions) {
+         if(r.inside(e)) {
+            doRegionPopup(x, y);
+            return;
+         }
+      }
+      doDefaultPopup(x, y);
    }
 
    private void doRegionPopup(int x, int y) {
@@ -2229,8 +2211,8 @@ public class SpecDisplay extends JComponent {
       });
       menu.add(mi);
 
-      mi = new JMenuItem("ID Sum Peak");
-      mi.setMnemonic('I');
+      mi = new JMenuItem("Mark Sum Peak");
+      mi.setMnemonic('M');
       mi.addActionListener(new AbstractAction() {
          private static final long serialVersionUID = 1L;
 
@@ -2246,7 +2228,7 @@ public class SpecDisplay extends JComponent {
                      pu.add(new SumMenuItem(sum));
                }
             } else {
-               final JMenuItem none = new JMenuItem("Please, select only one region.");
+               final JMenuItem none = new JMenuItem("Please select only one region.");
                pu.add(none);
             }
             final Rectangle r = SpecDisplay.this.getBounds();
@@ -2255,18 +2237,48 @@ public class SpecDisplay extends JComponent {
 
       });
       menu.add(mi);
+      mi = new JMenuItem("Clear Sum Peaks");
+      mi.setMnemonic('X');
+      mi.addActionListener(new AbstractAction() {
+         private static final long serialVersionUID = 1L;
+
+         @Override
+         public void actionPerformed(ActionEvent e) {
+            SpecDisplay.this.removeMarkedSumPeaks();
+         }
+
+      });
+      menu.add(mi);
 
       return menu;
    }
 
+   
+   public void removeMarkedSumPeaks() {
+      TreeSet<KLMLine> removeMe = new TreeSet<KLMLine>();
+      for(Region r: SpecDisplay.this.mRegions) {
+         final double low =ToSI.eV(r.getLowEnergy());
+         final double high =ToSI.eV(r.getHighEnergy());
+         for(KLMLine line : SpecDisplay.this.mLines) {
+            if(line instanceof SumPeak sp) {
+               if((sp.mEnergy>=low) && (sp.mEnergy<=high)) {
+                  removeMe.add(line);
+               }
+            }
+         }
+      }
+      if(mKLMPanel!=null)
+         mKLMPanel.removeKLMs(removeMe);
+   }
+   
    /**
     * zoomToRegion - Zoom the horizontal display to contain all the currently
     * selected regions.
     */
    public void zoomToRegion() {
-      if (!mRegions.mList.isEmpty()) {
+      if (!mRegions.isEmpty()) {
          double min = Double.MAX_VALUE, max = -Double.MAX_VALUE;
-         for (final Region r : mRegions.mList) {
+         for (final Region r : mRegions) {
             if (r.getLowEnergy() < min)
                min = r.getLowEnergy();
             if (r.getHighEnergy() > max)
@@ -2276,7 +2288,7 @@ public class SpecDisplay extends JComponent {
             max = ((max + min) / 2) + 0.5;
             min = max - 1.0;
          }
-         mRegions.mList.clear();
+         mRegions.clear();
          zoomTo(min, max);
       }
    }
@@ -2291,7 +2303,7 @@ public class SpecDisplay extends JComponent {
     * clearRegionList - Clear all user defined regions (not ROIs).
     */
    public void clearRegionList() {
-      mRegions.mList.clear();
+      mRegions.clear();
       repaint();
    }
 
@@ -2304,7 +2316,7 @@ public class SpecDisplay extends JComponent {
       final NumberFormat nf = NumberFormat.getInstance();
       nf.setMaximumFractionDigits(1);
       nf.setGroupingUsed(false);
-      for (final Region r : mRegions.mList) {
+      for (final Region r : mRegions) {
          if (res.length() > 0)
             res += "\n";
          res += r.toTabbedString() + "\n" + header;
@@ -2325,7 +2337,7 @@ public class SpecDisplay extends JComponent {
       String res = "";
       final HalfUpFormat nf = new HalfUpFormat("#,##0");
       nf.setGroupingUsed(true);
-      for (final Region r : mRegions.mList) {
+      for (final Region r : mRegions) {
          if (res.length() > 0)
             res += "\n";
          res += r.toTabbedString() + "\n" + header;
@@ -2345,7 +2357,7 @@ public class SpecDisplay extends JComponent {
          String res = "Peak-Bkgd\tUncertainty\tS-to-N\tSpectrum";
          final HalfUpFormat nf = new HalfUpFormat("#,##0");
          nf.setGroupingUsed(true);
-         final ArrayList<Region> rois = new ArrayList<Region>(mRegions.mList);
+         final ArrayList<Region> rois = new ArrayList<Region>(mRegions);
          Collections.sort(rois);
          final Region low = rois.get(0), onPeak = rois.get(1), high = rois.get(2);
          for (final ISpectrumData sd : getData()) {
@@ -2397,11 +2409,10 @@ public class SpecDisplay extends JComponent {
    }
 
    public Set<SumPeak> idSumPeak() {
-      final int[] lines = new int[]{XRayTransition.KA1, XRayTransition.KB1, XRayTransition.LA1, XRayTransition.MA1};
       final Region r = mRegions.get(0);
       final double low = ToSI.eV(r.getLowEnergy());
       final double high = ToSI.eV(r.getHighEnergy());
-      return KLMLine.SumPeak.suggestSumPeaks(getMarkedElements(), low, high, 2, lines);
+      return KLMLine.SumPeak.suggestSumPeaks(getMarkedElements(), low, high, 3);
    }
 
    // This class is used to hold an image while on the clipboard.
@@ -2488,7 +2499,7 @@ public class SpecDisplay extends JComponent {
          final StringBuffer IndividualSpectrumData = new StringBuffer();
          IndividualSpectrumData.append(sd.toString());
          // cycles through each region
-         for (final Region r : mRegions.mList) {
+         for (final Region r : mRegions) {
             // Finds the start (left side) of the highlighted region
             final int min = SpectrumUtils.bound(sd, SpectrumUtils.channelForEnergy(sd, r.getLowEnergy()));
             // Finds the end (right side) of the highlighted region
@@ -2510,7 +2521,7 @@ public class SpecDisplay extends JComponent {
    public void writeDataInMultipleColumns(StringBuffer AllSpectrumData) {
       assert (allVisableSpectrumAreTheSameWidth());
       // Initializes the list of regions to the beginning
-      for (final Region r : mRegions.mList) {
+      for (final Region r : mRegions) {
          // Initializes the list of spectra to the beginning
          final List<ISpectrumData> data = getData();
          final ISpectrumData sd0 = data.get(0);
@@ -2834,14 +2845,14 @@ public class SpecDisplay extends JComponent {
          mCurrentScalingMode = mode;
          setButtonGroupSelection(jButtonGroup_Scaling, mode.toString());
          if (mCurrentScalingMode == SCALING_MODE.REGION_INTEGRAL)
-            if (mRegions.mList.size() > 0)
-               mScalingRegions = new Regions(mRegions);
+            if (mRegions.size() > 0)
+               mScalingRegions = new ArrayList<>(mRegions);
             else
                mCurrentScalingMode = SCALING_MODE.INTEGRAL;
          if (mCurrentScalingMode == SCALING_MODE.REGION_INTEGRAL) {
             final StringBuffer sb = new StringBuffer();
             boolean first = true;
-            for (final Region r : mScalingRegions.mList) {
+            for (final Region r : mScalingRegions) {
                sb.append(first ? "Fraction of integral " : ", ");
                sb.append(r.toString());
                first = false;
@@ -2895,7 +2906,7 @@ public class SpecDisplay extends JComponent {
          case REGION_INTEGRAL : {
             if (mScalingRegions != null) {
                double c = 0.0;
-               for (final Region r : mScalingRegions.mList) {
+               for (final Region r : mScalingRegions) {
                   c += SpectrumUtils.integrate(sd, r.getLowEnergy(), r.getHighEnergy());
                }
                return c > 0.0 ? 100.0 / c : 100.0;
@@ -3059,15 +3070,15 @@ public class SpecDisplay extends JComponent {
     * @return ISpectrumData
     */
    public ISpectrumData trimSpectrum(ISpectrumData spec) {
-      if (mRegions.mList.size() > 0) {
-         for (final Region reg : mRegions.mList)
+      if (mRegions.size() > 0) {
+         for (final Region reg : mRegions)
             spec = SpectrumUtils.trimSpectrum(spec, reg.getLowEnergy(), reg.getHighEnergy() - ENERGY_EPS);
          return spec;
       } else
          return spec;
    }
 
-   public Regions getRegions() {
+   public List<Region> getRegions() {
       return mRegions;
    }
 
